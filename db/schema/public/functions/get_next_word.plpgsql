@@ -1,0 +1,48 @@
+create or replace
+function get_next_word(
+  auser_id       integer,
+  afrom_language language_mnemonic default 'en'::language_mnemonic,
+  ato_language   language_mnemonic default 'ru'::language_mnemonic
+) returns table(
+  message   text,
+  job_id    integer,
+  word_from character varying
+) as $$
+declare
+  vjob_id integer; vword_from_id integer; vword_from varchar;
+begin
+  if public.get_current_job(auser_id) is not null then
+    return query select 'Job for user already exists'::text, public.get_current_job(auser_id),
+      public.get_current_word(auser_id);
+    return;
+  end if;
+
+  select wf.id, wf.word
+    into vword_from_id, vword_from
+    from dictionary d
+    join word wf on wf.id = d.word_from_id
+    join word wt on wt.id = d.word_to_id
+   where wf.language = afrom_language and
+         wt.language = ato_language and
+         d.user_id = auser_id and
+         wf.id in (
+            select w.id
+              from word w
+              left join job j on j.word_id = w.id and j.user_id = auser_id
+             where w.language = afrom_language
+             group by 1
+             order by count(j.id)
+             limit 10
+         )
+   order by random()
+    limit 1;
+
+  insert into job(user_id, word_id, to_language)
+  values (auser_id, vword_from_id, ato_language)
+  returning id into vjob_id;
+
+  return query
+    select 'ok'::text, vjob_id, vword_from;
+end;
+$$ language plpgsql security definer;
+

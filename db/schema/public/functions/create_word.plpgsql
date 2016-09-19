@@ -1,0 +1,22 @@
+create or replace
+function create_word(
+  aword     character varying,
+  alanguage language_mnemonic
+) returns integer as $$
+declare
+  vid integer;
+begin
+  select id into vid from word where language = alanguage and lower(word) = aword;
+
+  if vid is not null then
+    return vid;
+  end if;
+
+  insert into word (language, word)
+  values (alanguage, lower(aword))
+  returning id into vid;
+
+  return vid;
+end;
+$$ language plpgsql security definer;
+

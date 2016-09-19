@@ -1,0 +1,29 @@
+create or replace
+function create_translation(
+  auser_id       integer,
+  aword_from     character varying,
+  aword_to       character varying,
+  afrom_language language_mnemonic default 'en'::language_mnemonic,
+  ato_language   language_mnemonic default 'ru'::language_mnemonic
+) returns integer as $$
+declare
+  vid integer;
+begin
+  select id into vid from dictionary
+   where user_id = auser_id and
+         word_from_id = public.create_word(aword_from, afrom_language) and
+         word_to_id = public.create_word(aword_to, ato_language) and
+         relation = 'translate';
+
+  if vid is not null then
+    return vid;
+  end if;
+
+  insert into dictionary (user_id, word_from_id, word_to_id, relation, authority)
+  values (auser_id, public.create_word(aword_from, afrom_language), public.create_word(aword_to, ato_language), 'translate', 1)
+  returning id into vid;
+
+  return vid;
+end;
+$$ language plpgsql security definer;
+

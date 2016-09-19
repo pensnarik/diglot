@@ -1,0 +1,15 @@
+create or replace
+function get_statistics(auser_id integer) returns table(
+  total_words     integer,
+  total_jobs      integer,
+  correct_answers integer
+) as $$
+begin
+  return query
+  select
+    (select count(*) from word)::integer,
+    (select count(*) from job where user_id = auser_id)::integer,
+    (select count(*) from answer a join job j on a.job_id = j.id where j.user_id = auser_id and is_correct)::integer;
+end;
+$$ language plpgsql security definer;
+

@@ -1,0 +1,58 @@
+create or replace
+function check_user_answer(
+  auser_id integer,
+  aanswer  character varying
+) returns table(
+  is_correct     boolean,
+  correct_answer character varying
+) as $$
+declare
+  vjob_id integer;
+  vis_corrent boolean; rjob record;
+  vword_id integer;
+begin
+  /*
+    aanswer is null means that users giving up
+  */
+  vjob_id := public.get_current_job(auser_id);
+
+  if vjob_id is null then
+    raise exception 'No active job';
+  end if;
+
+  select * into rjob from job where id = vjob_id;
+
+  select id into vword_id
+    from word
+   where lower(word) = lower(aanswer) and
+         language = rjob.to_language;
+
+  if not found then
+    vis_corrent := false;
+  else
+
+    if exists (
+      select *
+        from dictionary
+       where word_from_id = rjob.word_id and
+             word_to_id = vword_id and
+             relation = 'translate'
+    ) then
+      vis_corrent := true;
+    else
+      vis_corrent := false;
+    end if;
+
+  end if;
+
+  insert into answer(job_id, answer, is_correct)
+  values (vjob_id, aanswer, vis_corrent);
+
+  if vis_corrent or aanswer is null then
+    update job set status = 'finished' where id = vjob_id;
+  end if;
+
+  return query select vis_corrent, array_to_string(public.get_correct_answer(vjob_id), ', ')::varchar;
+end;
+$$ language plpgsql security definer;
+
